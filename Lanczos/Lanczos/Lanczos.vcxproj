@@ -150,9 +150,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="1-test.cpp" />
+    <ClCompile Include="CubeLanczos.cpp" />
     <ClCompile Include="Lanczos.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CubeLanczos.h" />
     <ClInclude Include="Lanczos.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
