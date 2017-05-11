@@ -2,7 +2,6 @@
 #include <iostream>
 #include <time.h>
 #include "CubeLanczos.h"
-#include <omp.h>
 
 CubeLanczos::CubeLanczos(int rows, int columns, int layers)
 {
@@ -27,8 +26,6 @@ CubeLanczos::CubeLanczos(int rows, int columns, int layers)
 	ay = 0.5f * hx*hx * hz*hz * a;
 	az = 0.5f * hx*hx * hy*hy * a;
 
-	local_error = 1.0f;
-
 	NewData = new float[n_elems];
 	OldData = new float[n_elems];
 	for (int i = 0; i < n_elems; i++)
@@ -45,8 +42,6 @@ CubeLanczos::CubeLanczos(int rows, int columns, int layers)
 	IJK[0] = -1;
 	IJK[1] = -1;
 	IJK[2] = -1;
-
-	ApplyLaplacian();
 }
 CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, int rank, int P, int chunk_flag)
 {
@@ -118,7 +113,7 @@ CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, in
 
 void CubeLanczos::ApplyA(float* in, float* out)
 {
-	PrepareOutgoingBuffers();
+	PrepareOutgoingBuffers(in);
 	communicate();
 	int m;
 	float sum;
@@ -183,31 +178,25 @@ void CubeLanczos::ApplyA(float* in, float* out)
 
 	wait_for_sends();
 }
-void CubeLanczos::SwapBuffers()
-{
-	float* temp = OldData;
-	OldData = NewData;
-	NewData = temp;
-}
-void CubeLanczos::PrepareOutgoingBuffers()
+void CubeLanczos::PrepareOutgoingBuffers(float* in)
 {
 	for (int j = 0; j < n_cols; j++)
 		for (int i = 0; i < n_rows; i++)
 		{
-			top_data[ij_to_m(i, j)] = OldData[ijk_to_m(i, j, 0)];
-			bottom_data[ij_to_m(i, j)] = OldData[ijk_to_m(i, j, n_layers - 1)];
+			top_data[ij_to_m(i, j)] = in[ijk_to_m(i, j, 0)];
+			bottom_data[ij_to_m(i, j)] = in[ijk_to_m(i, j, n_layers - 1)];
 		}
 	for (int k = 0; k < n_layers; k++)
 		for (int i = 0; i < n_rows; i++)
 		{
-			front_data[ik_to_m(i, k)] = OldData[ijk_to_m(i, n_cols - 1, k)];
-			back_data[ik_to_m(i, k)] = OldData[ijk_to_m(i, 0, k)];
+			front_data[ik_to_m(i, k)] = in[ijk_to_m(i, n_cols - 1, k)];
+			back_data[ik_to_m(i, k)] = in[ijk_to_m(i, 0, k)];
 		}
 	for (int k = 0; k < n_layers; k++)
 		for (int j = 0; j < n_cols; j++)
 		{
-			left_data[jk_to_m(j, k)] = OldData[ijk_to_m(0, j, k)];
-			right_data[jk_to_m(j, k)] = OldData[ijk_to_m(n_rows - 1, j, k)];
+			left_data[jk_to_m(j, k)] = in[ijk_to_m(0, j, k)];
+			right_data[jk_to_m(j, k)] = in[ijk_to_m(n_rows - 1, j, k)];
 		}
 }
 

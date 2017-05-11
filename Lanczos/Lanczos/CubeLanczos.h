@@ -1,5 +1,5 @@
 #pragma once
-#include <mpi.h>
+#include "mpi.h"
 class CubeLanczos
 {
 private:
@@ -50,7 +50,7 @@ public:
 	// Internal Functions
 	void ApplyA(float*, float*);
 	void SwapBuffers();
-	void PrepareOutgoingBuffers();
+	void PrepareOutgoingBuffers(float*);
 
 	// Static Functions
 	void set_divs(int);
