@@ -9,7 +9,8 @@ private:
 	const int periods[3] = { 0, 0, 0 };
 
 	// Data
-	float* local_array;
+	float* local_in;
+	float* local_out;
 	float* top_neighbor;
 	float* bottom_neighbor;
 	float* left_neighbor;
@@ -47,7 +48,7 @@ public:
 
 	// Internal Functions
 	void ApplyA(float*, float*);
-	void PrepareOutgoingBuffers(float*);
+	void PrepareOutgoingBuffers();
 
 	// Static Functions
 	void set_divs(int);

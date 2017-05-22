@@ -9,9 +9,6 @@ CubeLanczos::CubeLanczos(float* in, int total_rows, int total_columns, int total
 	p_id = rank;
 	n_processors = P;
 
-	int seed = (int)(time(NULL) + rank);
-	srand(seed);
-
 	n_rows = total_rows / divs[0];
 	n_cols = total_columns / divs[1];
 	n_layers = total_layers / divs[2];
@@ -26,11 +23,8 @@ CubeLanczos::CubeLanczos(float* in, int total_rows, int total_columns, int total
 	az = 1.0 / (hz*hz);
 	a = 2.0 * (ax + ay + az);
 
-	// Instead of generating a portion of the full vector on each processor,
-	//  scatter the input vector from the root processor to all available
-	//  processors.
-
-	local_array = new float[n_elems];
+	local_in = new float[n_elems];
+	local_out = new float[n_elems];
 
 	top_neighbor = new float[n_rows*n_cols]();
 	bottom_neighbor = new float[n_rows*n_cols]();
@@ -56,7 +50,8 @@ CubeLanczos::CubeLanczos(float* in, int total_rows, int total_columns, int total
 
 void CubeLanczos::ApplyA(float* in, float* out)
 {
-	PrepareOutgoingBuffers(in);
+	MPI_Scatter(in, n_elems, MPI_FLOAT, local_in, n_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	PrepareOutgoingBuffers();
 	communicate();
 	int m;
 	float sum;
@@ -86,7 +81,7 @@ void CubeLanczos::ApplyA(float* in, float* out)
 		if (m != -1) { sum += az*in[m]; }
 		else { sum += az*bottom_neighbor[ij_to_m(IJK[0], IJK[1])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2]);
-		out[M] = a*in[m] - sum;
+		local_out[M] = a*local_in[m] - sum;
 	}
 
 	wait_for_recvs();
@@ -116,31 +111,32 @@ void CubeLanczos::ApplyA(float* in, float* out)
 		if (m != -1) { sum += az*in[m]; }
 		else { sum += az*bottom_neighbor[ij_to_m(IJK[0], IJK[1])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2]);
-		out[M] = a*in[m] - sum;
+		local_out[M] = a*local_in[m] - sum;
 	}
 
 	wait_for_sends();
+	MPI_Gather(out, n_elems, MPI_FLOAT, local_out, n_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
 }
-void CubeLanczos::PrepareOutgoingBuffers(float* in)
+void CubeLanczos::PrepareOutgoingBuffers()
 {
 
 	for (int j = 0; j < n_cols; j++)
 		for (int i = 0; i < n_rows; i++)
 		{
-			top_data[ij_to_m(i, j)] = in[ijk_to_m(i, j, 0)];
-			bottom_data[ij_to_m(i, j)] = in[ijk_to_m(i, j, n_layers - 1)];
+			top_data[ij_to_m(i, j)] = local_in[ijk_to_m(i, j, 0)];
+			bottom_data[ij_to_m(i, j)] = local_in[ijk_to_m(i, j, n_layers - 1)];
 		}
 	for (int k = 0; k < n_layers; k++)
 		for (int i = 0; i < n_rows; i++)
 		{
-			front_data[ik_to_m(i, k)] = in[ijk_to_m(i, n_cols - 1, k)];
-			back_data[ik_to_m(i, k)] = in[ijk_to_m(i, 0, k)];
+			front_data[ik_to_m(i, k)] = local_in[ijk_to_m(i, n_cols - 1, k)];
+			back_data[ik_to_m(i, k)] = local_in[ijk_to_m(i, 0, k)];
 		}
 	for (int k = 0; k < n_layers; k++)
 		for (int j = 0; j < n_cols; j++)
 		{
-			left_data[jk_to_m(j, k)] = in[ijk_to_m(0, j, k)];
-			right_data[jk_to_m(j, k)] = in[ijk_to_m(n_rows - 1, j, k)];
+			left_data[jk_to_m(j, k)] = local_in[ijk_to_m(0, j, k)];
+			right_data[jk_to_m(j, k)] = local_in[ijk_to_m(n_rows - 1, j, k)];
 		}
 }
 
