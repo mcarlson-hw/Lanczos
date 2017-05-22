@@ -3,7 +3,7 @@
 #include <time.h>
 #include "CubeLanczos.h"
 
-CubeLanczos::CubeLanczos(float* in, int total_rows, int total_columns, int total_layers, int rank, int P)
+CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, int rank, int P)
 {
 	set_divs(P);
 	p_id = rank;

@@ -18,9 +18,6 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Lanczos.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="1-test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -29,9 +26,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Lanczos.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="CubeLanczos.h">
       <Filter>Header Files</Filter>
     </ClInclude>

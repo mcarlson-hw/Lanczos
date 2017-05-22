@@ -44,7 +44,7 @@ public:
 
 
 	// Constructors
-	CubeLanczos(float*, int, int, int, int, int);
+	CubeLanczos(int, int, int, int, int);
 
 	// Internal Functions
 	void ApplyA(float*, float*);
