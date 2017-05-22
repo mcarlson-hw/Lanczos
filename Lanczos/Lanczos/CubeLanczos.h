@@ -9,8 +9,7 @@ private:
 	const int periods[3] = { 0, 0, 0 };
 
 	// Data
-	float* OldData;
-	float* NewData;
+	float* local_array;
 	float* top_neighbor;
 	float* bottom_neighbor;
 	float* left_neighbor;
@@ -44,17 +43,14 @@ public:
 
 
 	// Constructors
-	CubeLanczos(int, int, int);
-	CubeLanczos(int, int, int, int, int, int);
+	CubeLanczos(float*, int, int, int, int, int);
 
 	// Internal Functions
 	void ApplyA(float*, float*);
-	void SwapBuffers();
 	void PrepareOutgoingBuffers(float*);
 
 	// Static Functions
 	void set_divs(int);
-	void printData(int);
 
 	// Coordinate Functions
 	int ijk_to_m(int, int, int);
@@ -62,9 +58,6 @@ public:
 	int ij_to_m(int, int);
 	int ik_to_m(int, int);
 	void m_to_ijk(int);
-
-	// Accessors
-	float* data_pointer(int, int);
 
 	// MPI
 	void parallel_init();

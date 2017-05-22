@@ -3,47 +3,7 @@
 #include <time.h>
 #include "CubeLanczos.h"
 
-CubeLanczos::CubeLanczos(int rows, int columns, int layers)
-{
-	// 1) Initialize single cube mesh of size (rows by columns by layers) with random values in NewData
-	//		When ApplyLaplacian is called, NewData will be swapped into OldData, no need to initialize OldData
-
-	int seed = (int)time(NULL);
-	srand(seed);
-
-	n_rows = rows;
-	n_cols = columns;
-	n_layers = layers;
-	n_elems = rows*columns*layers;
-
-	hx = 1.0f / ((float)(rows + 1));
-	hy = 1.0f / ((float)(columns + 1));
-	hz = 1.0f / ((float)(layers + 1));
-	h = hx*hx * hy*hy * hz*hz;
-	a = 1.0f / (hx*hx*hy*hy + hy*hy*hz*hz + hy*hy*hz*hz);
-	ah = -0.5f * h * a;
-	ax = 0.5f * hy*hy * hz*hz * a;
-	ay = 0.5f * hx*hx * hz*hz * a;
-	az = 0.5f * hx*hx * hy*hy * a;
-
-	NewData = new float[n_elems];
-	OldData = new float[n_elems];
-	for (int i = 0; i < n_elems; i++)
-		NewData[i] = 2.0f * ((float)rand() / (float)RAND_MAX - 0.5f);
-
-	top_neighbor = new float[n_rows*n_cols]();
-	bottom_neighbor = new float[n_rows*n_cols]();
-	left_neighbor = new float[n_cols*n_layers]();
-	right_neighbor = new float[n_cols*n_layers]();
-	front_neighbor = new float[n_rows*n_layers]();
-	back_neighbor = new float[n_rows*n_layers]();
-
-	IJK = new int[3];
-	IJK[0] = -1;
-	IJK[1] = -1;
-	IJK[2] = -1;
-}
-CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, int rank, int P, int chunk_flag)
+CubeLanczos::CubeLanczos(float* in, int total_rows, int total_columns, int total_layers, int rank, int P)
 {
 	set_divs(P);
 	p_id = rank;
@@ -52,42 +12,25 @@ CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, in
 	int seed = (int)(time(NULL) + rank);
 	srand(seed);
 
-	if (chunk_flag == 0)
-	{
-		n_rows = total_rows / divs[0];
-		n_cols = total_columns / divs[1];
-		n_layers = total_layers / divs[2];
-		n_elems = n_rows*n_cols*n_layers;
+	n_rows = total_rows / divs[0];
+	n_cols = total_columns / divs[1];
+	n_layers = total_layers / divs[2];
+	n_elems = n_rows*n_cols*n_layers;
 
-		hx = 1.0f / ((float)(total_rows + 1));
-		hy = 1.0f / ((float)(total_columns + 1));
-		hz = 1.0f / ((float)(total_layers + 1));
-	}
-	else
-	{
-		n_rows = total_rows;
-		n_cols = total_columns;
-		n_layers = total_layers;
-		n_elems = n_rows*n_cols*n_layers;
+	hx = 1.0f / ((float)(total_rows + 1));
+	hy = 1.0f / ((float)(total_columns + 1));
+	hz = 1.0f / ((float)(total_layers + 1));
 
-		hx = 1.0f / ((float)(total_rows*divs[0] + 1));
-		hy = 1.0f / ((float)(total_columns*divs[1] + 1));
-		hz = 1.0f / ((float)(total_layers*divs[2] + 1));
-	}
+	ax = 1.0 / (hx*hx);
+	ay = 1.0 / (hy*hy);
+	az = 1.0 / (hz*hz);
+	a = 2.0 * (ax + ay + az);
 
+	// Instead of generating a portion of the full vector on each processor,
+	//  scatter the input vector from the root processor to all available
+	//  processors.
 
-	h = hx*hx * hy*hy * hz*hz;
-	a = 1.0f / (hx*hx*hy*hy + hy*hy*hz*hz + hy*hy*hz*hz);
-	ah = -0.5f * h * a;
-	ax = 0.5f * hy*hy * hz*hz * a;
-	ay = 0.5f * hx*hx * hz*hz * a;
-	az = 0.5f * hx*hx * hy*hy * a;
-
-	NewData = new float[n_elems];
-	OldData = new float[n_elems];
-	for (int i = 0; i < n_elems; i++)
-		NewData[i] = 2.0f * ((float)rand() / (float)RAND_MAX - 0.5f);
-	//NewData[i] = (float)((i+1) + n_elems*rank);
+	local_array = new float[n_elems];
 
 	top_neighbor = new float[n_rows*n_cols]();
 	bottom_neighbor = new float[n_rows*n_cols]();
@@ -180,6 +123,7 @@ void CubeLanczos::ApplyA(float* in, float* out)
 }
 void CubeLanczos::PrepareOutgoingBuffers(float* in)
 {
+
 	for (int j = 0; j < n_cols; j++)
 		for (int i = 0; i < n_rows; i++)
 		{
@@ -233,17 +177,6 @@ void CubeLanczos::set_divs(int p)
 	this->divs[1] = p_divs[p - 1][1];
 	this->divs[2] = p_divs[p - 1][2];
 }
-void CubeLanczos::printData(int b)
-{
-	std::cout << "P (" << p_id << "): [";
-	if (b == 0)
-		for (int i = 0; i < n_elems; i++)
-			std::cout << OldData[i] << " ";
-	else if (b == 1)
-		for (int i = 0; i < n_elems; i++)
-			std::cout << NewData[i] << " ";
-	std::cout << "]\n";
-}
 
 int CubeLanczos::ijk_to_m(int i, int j, int k)
 {
@@ -271,36 +204,6 @@ void CubeLanczos::m_to_ijk(int m)
 	IJK[0] = m % n_rows;
 	IJK[1] = (m / n_rows) % n_cols;
 	IJK[2] = m / (n_rows * n_cols);
-}
-
-float* CubeLanczos::data_pointer(int b_id, int dir)
-{
-	if (dir == 0)
-		switch (b_id)
-		{
-		case 0:	return OldData;
-		case 1: return top_neighbor;
-		case 2: return bottom_neighbor;
-		case 3: return left_neighbor;
-		case 4: return right_neighbor;
-		case 5: return front_neighbor;
-		case 6: return back_neighbor;
-		default: { std::cout << "Invalid boundary id.\n"; return NULL; }
-		}
-	else if (dir == 1)
-		switch (b_id)
-		{
-		case 0:	return OldData;
-		case 1: return top_data;
-		case 2: return bottom_data;
-		case 3: return left_data;
-		case 4: return right_data;
-		case 5: return front_data;
-		case 6: return back_data;
-		default: { std::cout << "Invalid boundary id.\n"; return NULL; }
-		}
-	std::cout << "Invalid dir.\n";
-	return NULL;
 }
 
 void CubeLanczos::parallel_init()
