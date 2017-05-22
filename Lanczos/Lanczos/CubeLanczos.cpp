@@ -2,21 +2,23 @@
 #include <iostream>
 #include <time.h>
 #include "CubeLanczos.h"
-
-CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, int rank, int P)
+using namespace std;
+CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, int rank, int P, MPI_Comm comm)
 {
 	set_divs(P);
 	p_id = rank;
 	n_processors = P;
+
+	periods = new int[3]();
 
 	n_rows = total_rows / divs[0];
 	n_cols = total_columns / divs[1];
 	n_layers = total_layers / divs[2];
 	n_elems = n_rows*n_cols*n_layers;
 
-	hx = 1.0f / ((float)(total_rows + 1));
-	hy = 1.0f / ((float)(total_columns + 1));
-	hz = 1.0f / ((float)(total_layers + 1));
+	hx = 1.0f / ((float)(total_rows - 1));
+	hy = 1.0f / ((float)(total_columns - 1));
+	hz = 1.0f / ((float)(total_layers - 1));
 
 	ax = 1.0 / (hx*hx);
 	ay = 1.0 / (hy*hy);
@@ -45,14 +47,15 @@ CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, in
 	IJK[1] = -1;
 	IJK[2] = -1;
 
-	parallel_init();
+	parallel_init(comm);
 }
 
-void CubeLanczos::ApplyA(float* in, float* out)
+void CubeLanczos::ApplyA(float* in, float* out, MPI_Comm comm)
 {
-	MPI_Scatter(in, n_elems, MPI_FLOAT, local_in, n_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Scatter(in, n_elems, MPI_FLOAT, local_in, n_elems, MPI_FLOAT, 0, comm);
 	PrepareOutgoingBuffers();
 	communicate();
+
 	int m;
 	float sum;
 
@@ -63,22 +66,22 @@ void CubeLanczos::ApplyA(float* in, float* out)
 			continue;
 		sum = 0.0f;
 		m = ijk_to_m(IJK[0] + 1, IJK[1], IJK[2]);
-		if (m != -1) { sum += ax*in[m]; }
+		if (m != -1) { sum += ax*local_in[m]; }
 		else { sum += ax*right_neighbor[jk_to_m(IJK[1], IJK[2])]; }
 		m = ijk_to_m(IJK[0] - 1, IJK[1], IJK[2]);
-		if (m != -1) { sum += ax*in[m]; }
+		if (m != -1) { sum += ax*local_in[m]; }
 		else { sum += ax*left_neighbor[jk_to_m(IJK[1], IJK[2])]; }
 		m = ijk_to_m(IJK[0], IJK[1] + 1, IJK[2]);
-		if (m != -1) { sum += ay*in[m]; }
+		if (m != -1) { sum += ay*local_in[m]; }
 		else { sum += ay*front_neighbor[ik_to_m(IJK[0], IJK[2])]; }
 		m = ijk_to_m(IJK[0], IJK[1] - 1, IJK[2]);
-		if (m != -1) { sum += ay*in[m]; }
+		if (m != -1) { sum += ay*local_in[m]; }
 		else { sum += ay*back_neighbor[ik_to_m(IJK[0], IJK[2])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2] + 1);
-		if (m != -1) { sum += az*in[m]; }
+		if (m != -1) { sum += az*local_in[m]; }
 		else { sum += az*top_neighbor[ij_to_m(IJK[0], IJK[1])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2] - 1);
-		if (m != -1) { sum += az*in[m]; }
+		if (m != -1) { sum += az*local_in[m]; }
 		else { sum += az*bottom_neighbor[ij_to_m(IJK[0], IJK[1])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2]);
 		local_out[M] = a*local_in[m] - sum;
@@ -93,29 +96,30 @@ void CubeLanczos::ApplyA(float* in, float* out)
 			continue;
 		sum = 0.0f;
 		m = ijk_to_m(IJK[0] + 1, IJK[1], IJK[2]);
-		if (m != -1) { sum += ax*in[m]; }
+		if (m != -1) { sum += ax*local_in[m]; }
 		else { sum += ax*right_neighbor[jk_to_m(IJK[1], IJK[2])]; }
 		m = ijk_to_m(IJK[0] - 1, IJK[1], IJK[2]);
-		if (m != -1) { sum += ax*in[m]; }
+		if (m != -1) { sum += ax*local_in[m]; }
 		else { sum += ax*left_neighbor[jk_to_m(IJK[1], IJK[2])]; }
 		m = ijk_to_m(IJK[0], IJK[1] + 1, IJK[2]);
-		if (m != -1) { sum += ay*in[m]; }
+		if (m != -1) { sum += ay*local_in[m]; }
 		else { sum += ay*front_neighbor[ik_to_m(IJK[0], IJK[2])]; }
 		m = ijk_to_m(IJK[0], IJK[1] - 1, IJK[2]);
-		if (m != -1) { sum += ay*in[m]; }
+		if (m != -1) { sum += ay*local_in[m]; }
 		else { sum += ay*back_neighbor[ik_to_m(IJK[0], IJK[2])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2] + 1);
-		if (m != -1) { sum += az*in[m]; }
+		if (m != -1) { sum += az*local_in[m]; }
 		else { sum += az*top_neighbor[ij_to_m(IJK[0], IJK[1])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2] - 1);
-		if (m != -1) { sum += az*in[m]; }
+		if (m != -1) { sum += az*local_in[m]; }
 		else { sum += az*bottom_neighbor[ij_to_m(IJK[0], IJK[1])]; }
 		m = ijk_to_m(IJK[0], IJK[1], IJK[2]);
 		local_out[M] = a*local_in[m] - sum;
 	}
 
 	wait_for_sends();
-	MPI_Gather(out, n_elems, MPI_FLOAT, local_out, n_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+	MPI_Gather(local_out, n_elems, MPI_FLOAT, out, n_elems, MPI_FLOAT, 0, comm);
 }
 void CubeLanczos::PrepareOutgoingBuffers()
 {
@@ -202,9 +206,9 @@ void CubeLanczos::m_to_ijk(int m)
 	IJK[2] = m / (n_rows * n_cols);
 }
 
-void CubeLanczos::parallel_init()
+void CubeLanczos::parallel_init(MPI_Comm comm)
 {
-	MPI_Cart_create(MPI_COMM_WORLD, 3, divs, periods, 0, &cart_comm);
+	MPI_Cart_create(comm, 3, divs, periods, 0, &cart_comm);
 	int local_coords[3] = { 0, 0, 0 };
 	MPI_Cart_coords(cart_comm, p_id, 3, local_coords);
 	p_XYZ = new int[3];
@@ -269,19 +273,19 @@ void CubeLanczos::communicate()
 
 void CubeLanczos::wait_for_sends()
 {
-	if (up_s != NULL) MPI_Wait(&up_s, MPI_STATUS_IGNORE);
-	if (down_s != NULL) MPI_Wait(&down_s, MPI_STATUS_IGNORE);
-	if (left_s != NULL) MPI_Wait(&left_s, MPI_STATUS_IGNORE);
-	if (right_s != NULL) MPI_Wait(&right_s, MPI_STATUS_IGNORE);
-	if (front_s != NULL) MPI_Wait(&front_s, MPI_STATUS_IGNORE);
-	if (back_s != NULL) MPI_Wait(&back_s, MPI_STATUS_IGNORE);
+	if (p_up != -1) MPI_Wait(&up_s, MPI_STATUS_IGNORE);
+	if (p_down != -1) MPI_Wait(&down_s, MPI_STATUS_IGNORE);
+	if (p_left != -1) MPI_Wait(&left_s, MPI_STATUS_IGNORE);
+	if (p_right != -1) MPI_Wait(&right_s, MPI_STATUS_IGNORE);
+	if (p_front != -1) MPI_Wait(&front_s, MPI_STATUS_IGNORE);
+	if (p_back != -1) MPI_Wait(&back_s, MPI_STATUS_IGNORE);
 }
 void CubeLanczos::wait_for_recvs()
 {
-	if (up_r != NULL) MPI_Wait(&up_r, MPI_STATUS_IGNORE);
-	if (down_r != NULL) MPI_Wait(&down_r, MPI_STATUS_IGNORE);
-	if (left_r != NULL) MPI_Wait(&left_r, MPI_STATUS_IGNORE);
-	if (right_r != NULL) MPI_Wait(&right_r, MPI_STATUS_IGNORE);
-	if (front_r != NULL) MPI_Wait(&front_r, MPI_STATUS_IGNORE);
-	if (back_r != NULL) MPI_Wait(&back_r, MPI_STATUS_IGNORE);
+	if (p_up != -1) MPI_Wait(&up_r, MPI_STATUS_IGNORE);
+	if (p_down != -1) MPI_Wait(&down_r, MPI_STATUS_IGNORE);
+	if (p_left != -1) MPI_Wait(&left_r, MPI_STATUS_IGNORE);
+	if (p_right != -1) MPI_Wait(&right_r, MPI_STATUS_IGNORE);
+	if (p_front != -1) MPI_Wait(&front_r, MPI_STATUS_IGNORE);
+	if (p_back != -1) MPI_Wait(&back_r, MPI_STATUS_IGNORE);
 }

@@ -6,7 +6,7 @@ private:
 	// Constants
 	const float PI = 3.1415927f;
 	const float C = -0.008443431966f;
-	const int periods[3] = { 0, 0, 0 };
+	int* periods;
 
 	// Data
 	float* local_in;
@@ -44,10 +44,10 @@ public:
 
 
 	// Constructors
-	CubeLanczos(int, int, int, int, int);
+	CubeLanczos(int, int, int, int, int, MPI_Comm);
 
 	// Internal Functions
-	void ApplyA(float*, float*);
+	void ApplyA(float*, float*, MPI_Comm comm);
 	void PrepareOutgoingBuffers();
 
 	// Static Functions
@@ -61,11 +61,11 @@ public:
 	void m_to_ijk(int);
 
 	// MPI
-	void parallel_init();
+	void parallel_init(MPI_Comm);
 	void communicate();
 	void wait_for_sends();
 	void wait_for_recvs();
 
 	// Destructor
-	//~CubeMesh();	// Free memory upon destruction
+	//~CubeMesh();  // Free memory upon destruction
 };
