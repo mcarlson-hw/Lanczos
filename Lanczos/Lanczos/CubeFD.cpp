@@ -1,9 +1,9 @@
 #include <cmath>
 #include <iostream>
 #include <time.h>
-#include "CubeLanczos.h"
+#include "CubeFD.h"
 using namespace std;
-CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, int rank, int P, MPI_Comm comm)
+CubeFD::CubeFD(int total_rows, int total_columns, int total_layers, int rank, int P, MPI_Comm comm)
 {
 	set_divs(P);
 	p_id = rank;
@@ -20,10 +20,10 @@ CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, in
 	hy = 1.0f / ((float)(total_columns - 1));
 	hz = 1.0f / ((float)(total_layers - 1));
 
-	ax = 1.0 / (hx*hx);
-	ay = 1.0 / (hy*hy);
-	az = 1.0 / (hz*hz);
-	a = 2.0 * (ax + ay + az);
+	ax = 1.0f / (hx*hx);
+	ay = 1.0f / (hy*hy);
+	az = 1.0f / (hz*hz);
+	a = 2.0f * (ax + ay + az);
 
 	local_in = new float[n_elems];
 	local_out = new float[n_elems];
@@ -50,7 +50,7 @@ CubeLanczos::CubeLanczos(int total_rows, int total_columns, int total_layers, in
 	parallel_init(comm);
 }
 
-void CubeLanczos::ApplyA(float* in, float* out, MPI_Comm comm)
+void CubeFD::ApplyA(float* in, float* out, MPI_Comm comm)
 {
 	MPI_Scatter(in, n_elems, MPI_FLOAT, local_in, n_elems, MPI_FLOAT, 0, comm);
 	PrepareOutgoingBuffers();
@@ -121,7 +121,7 @@ void CubeLanczos::ApplyA(float* in, float* out, MPI_Comm comm)
 
 	MPI_Gather(local_out, n_elems, MPI_FLOAT, out, n_elems, MPI_FLOAT, 0, comm);
 }
-void CubeLanczos::PrepareOutgoingBuffers()
+void CubeFD::PrepareOutgoingBuffers()
 {
 
 	for (int j = 0; j < n_cols; j++)
@@ -144,7 +144,7 @@ void CubeLanczos::PrepareOutgoingBuffers()
 		}
 }
 
-void CubeLanczos::set_divs(int p)
+void CubeFD::set_divs(int p)
 {
 	int p_divs[25][3] = { { 1, 1, 1 },
 	{ 2, 1, 1 },
@@ -178,35 +178,35 @@ void CubeLanczos::set_divs(int p)
 	this->divs[2] = p_divs[p - 1][2];
 }
 
-int CubeLanczos::ijk_to_m(int i, int j, int k)
+int CubeFD::ijk_to_m(int i, int j, int k)
 {
 	if (i < 0 || i > n_rows - 1 || j < 0 || j > n_cols - 1 || k < 0 || k > n_layers - 1)
 		return -1;
 	return (i + j * n_rows + k * n_rows * n_cols);
 }
-int CubeLanczos::jk_to_m(int j, int k)
+int CubeFD::jk_to_m(int j, int k)
 {
 	// n_cols by n_layers
 	return j + k*n_cols;
 }
-int CubeLanczos::ij_to_m(int i, int j)
+int CubeFD::ij_to_m(int i, int j)
 {
 	// n_rows by n_cols
 	return i + j*n_rows;
 }
-int CubeLanczos::ik_to_m(int i, int k)
+int CubeFD::ik_to_m(int i, int k)
 {
 	// n_rows by n_layers
 	return i + k*n_rows;
 }
-void CubeLanczos::m_to_ijk(int m)
+void CubeFD::m_to_ijk(int m)
 {
 	IJK[0] = m % n_rows;
 	IJK[1] = (m / n_rows) % n_cols;
 	IJK[2] = m / (n_rows * n_cols);
 }
 
-void CubeLanczos::parallel_init(MPI_Comm comm)
+void CubeFD::parallel_init(MPI_Comm comm)
 {
 	MPI_Cart_create(comm, 3, divs, periods, 0, &cart_comm);
 	int local_coords[3] = { 0, 0, 0 };
@@ -237,7 +237,7 @@ void CubeLanczos::parallel_init(MPI_Comm comm)
 	if (local_coords[2] + 1 < divs[2]) MPI_Cart_rank(cart_comm, up, &p_up);
 	if (local_coords[2] - 1 >= 0) MPI_Cart_rank(cart_comm, down, &p_down);
 }
-void CubeLanczos::communicate()
+void CubeFD::communicate()
 {
 	if (p_up != -1)
 	{
@@ -271,7 +271,7 @@ void CubeLanczos::communicate()
 	}
 }
 
-void CubeLanczos::wait_for_sends()
+void CubeFD::wait_for_sends()
 {
 	if (p_up != -1) MPI_Wait(&up_s, MPI_STATUS_IGNORE);
 	if (p_down != -1) MPI_Wait(&down_s, MPI_STATUS_IGNORE);
@@ -280,7 +280,7 @@ void CubeLanczos::wait_for_sends()
 	if (p_front != -1) MPI_Wait(&front_s, MPI_STATUS_IGNORE);
 	if (p_back != -1) MPI_Wait(&back_s, MPI_STATUS_IGNORE);
 }
-void CubeLanczos::wait_for_recvs()
+void CubeFD::wait_for_recvs()
 {
 	if (p_up != -1) MPI_Wait(&up_r, MPI_STATUS_IGNORE);
 	if (p_down != -1) MPI_Wait(&down_r, MPI_STATUS_IGNORE);

@@ -1,6 +1,6 @@
 #pragma once
-#include "mpi.h"
-class CubeLanczos
+#include <mpi.h>
+class CubeFD
 {
 private:
 	// Constants
@@ -44,7 +44,7 @@ public:
 
 
 	// Constructors
-	CubeLanczos(int, int, int, int, int, MPI_Comm);
+	CubeFD(int, int, int, int, int, MPI_Comm);
 
 	// Internal Functions
 	void ApplyA(float*, float*, MPI_Comm comm);
