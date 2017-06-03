@@ -57,7 +57,7 @@ int main(int argc, char **argv)
 	temp_v2 = new float[N];
 	temp_v3 = new float[N];
 	temp_v4 = new float[N];
-	CubeLanczos cl(d, d, d, rank, size, MPI_COMM_WORLD);
+	CubeFD cl(d, d, d, rank, size, MPI_COMM_WORLD);
 
 	for (int j = 1; j < K; j++)
 	{
