@@ -121,6 +121,84 @@ void CubeFD::ApplyA(float* in, float* out, MPI_Comm comm)
 
 	MPI_Gather(local_out, n_elems, MPI_FLOAT, out, n_elems, MPI_FLOAT, 0, comm);
 }
+void CubeFD::ApplyB(float* in, float* out, float sigma, MPI_Comm comm)
+{
+	MPI_Scatter(in, n_elems, MPI_FLOAT, local_in, n_elems, MPI_FLOAT, 0, comm);
+	PrepareOutgoingBuffers();
+	communicate();
+
+	int m;
+	float sum;
+
+	for (int M = 0; M < n_elems; M++)
+	{
+		m_to_ijk(M);
+		if (IJK[0] == 0 || IJK[0] == n_rows - 1 || IJK[1] == 0 || IJK[0] == n_cols - 1 || IJK[2] == 0 || IJK[2] == n_layers - 1)
+			continue;
+		sum = 0.0f;
+		m = ijk_to_m(IJK[0] + 1, IJK[1], IJK[2]);
+		if (m != -1) { sum += ax*local_in[m]; }
+		else { sum += ax*right_neighbor[jk_to_m(IJK[1], IJK[2])]; }
+		m = ijk_to_m(IJK[0] - 1, IJK[1], IJK[2]);
+		if (m != -1) { sum += ax*local_in[m]; }
+		else { sum += ax*left_neighbor[jk_to_m(IJK[1], IJK[2])]; }
+		m = ijk_to_m(IJK[0], IJK[1] + 1, IJK[2]);
+		if (m != -1) { sum += ay*local_in[m]; }
+		else { sum += ay*front_neighbor[ik_to_m(IJK[0], IJK[2])]; }
+		m = ijk_to_m(IJK[0], IJK[1] - 1, IJK[2]);
+		if (m != -1) { sum += ay*local_in[m]; }
+		else { sum += ay*back_neighbor[ik_to_m(IJK[0], IJK[2])]; }
+		m = ijk_to_m(IJK[0], IJK[1], IJK[2] + 1);
+		if (m != -1) { sum += az*local_in[m]; }
+		else { sum += az*top_neighbor[ij_to_m(IJK[0], IJK[1])]; }
+		m = ijk_to_m(IJK[0], IJK[1], IJK[2] - 1);
+		if (m != -1) { sum += az*local_in[m]; }
+		else { sum += az*bottom_neighbor[ij_to_m(IJK[0], IJK[1])]; }
+		m = ijk_to_m(IJK[0], IJK[1], IJK[2]);
+		local_out[M] = (a - sigma)*local_in[m] - sum;
+	}
+
+	wait_for_recvs();
+
+	for (int M = 0; M < n_elems; M++)
+	{
+		m_to_ijk(M);
+		if (IJK[0] != 0 && IJK[0] != n_rows - 1 && IJK[1] != 0 && IJK[0] != n_cols - 1 && IJK[2] != 0 && IJK[2] != n_layers - 1)
+			continue;
+		sum = 0.0f;
+		m = ijk_to_m(IJK[0] + 1, IJK[1], IJK[2]);
+		if (m != -1) { sum += ax*local_in[m]; }
+		else { sum += ax*right_neighbor[jk_to_m(IJK[1], IJK[2])]; }
+		m = ijk_to_m(IJK[0] - 1, IJK[1], IJK[2]);
+		if (m != -1) { sum += ax*local_in[m]; }
+		else { sum += ax*left_neighbor[jk_to_m(IJK[1], IJK[2])]; }
+		m = ijk_to_m(IJK[0], IJK[1] + 1, IJK[2]);
+		if (m != -1) { sum += ay*local_in[m]; }
+		else { sum += ay*front_neighbor[ik_to_m(IJK[0], IJK[2])]; }
+		m = ijk_to_m(IJK[0], IJK[1] - 1, IJK[2]);
+		if (m != -1) { sum += ay*local_in[m]; }
+		else { sum += ay*back_neighbor[ik_to_m(IJK[0], IJK[2])]; }
+		m = ijk_to_m(IJK[0], IJK[1], IJK[2] + 1);
+		if (m != -1) { sum += az*local_in[m]; }
+		else { sum += az*top_neighbor[ij_to_m(IJK[0], IJK[1])]; }
+		m = ijk_to_m(IJK[0], IJK[1], IJK[2] - 1);
+		if (m != -1) { sum += az*local_in[m]; }
+		else { sum += az*bottom_neighbor[ij_to_m(IJK[0], IJK[1])]; }
+		m = ijk_to_m(IJK[0], IJK[1], IJK[2]);
+		local_out[M] = (a - sigma)*local_in[m] - sum;
+	}
+
+	wait_for_sends();
+
+	MPI_Gather(local_out, n_elems, MPI_FLOAT, out, n_elems, MPI_FLOAT, 0, comm);
+}
+void CubeFD::ApplyC(float* in, float* out, float sigma, MPI_Comm comm)
+{
+	MPI_Scatter(in, n_elems, MPI_FLOAT, local_in, n_elems, MPI_FLOAT, 0, comm);
+	for (int i = 0; i < n_elems; i++)
+		local_out[i] = (1.0f / (a - sigma)) * local_in[i];
+	MPI_Gather(local_out, n_elems, MPI_FLOAT, out, n_elems, MPI_FLOAT, 0, comm);
+}
 void CubeFD::PrepareOutgoingBuffers()
 {
 

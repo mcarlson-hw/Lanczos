@@ -4,6 +4,7 @@
 #include <cmath>
 #include "mpi_dot.h"
 #include "CubeFD.h"
+#include "mkl.h"
 using namespace std;
 int main(int argc, char **argv)
 {
@@ -90,6 +91,9 @@ int main(int argc, char **argv)
 	for (int i = 0; i < K; i++)
 		cout << beta[i] << " ";
 	cout << "]\n";
+
+	// Compute Eigenvalues with LAPACK
+	lapack_int info = LAPACKE_sstev(LAPACK_ROW_MAJOR, 'N', K + 1, alpha, &beta[1], NULL, (lapack_int) 1);
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	double end_time = MPI_Wtime();

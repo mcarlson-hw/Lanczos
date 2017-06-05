@@ -48,6 +48,8 @@ public:
 
 	// Internal Functions
 	void ApplyA(float*, float*, MPI_Comm comm);
+	void ApplyB(float*, float*, float, MPI_Comm comm);
+	void ApplyC(float*, float*, float, MPI_Comm comm);
 	void PrepareOutgoingBuffers();
 
 	// Static Functions
