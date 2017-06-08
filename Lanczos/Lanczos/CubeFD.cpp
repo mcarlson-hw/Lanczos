@@ -199,6 +199,13 @@ void CubeFD::ApplyC(float* in, float* out, float sigma, MPI_Comm comm)
 		local_out[i] = (1.0f / (a - sigma)) * local_in[i];
 	MPI_Gather(local_out, n_elems, MPI_FLOAT, out, n_elems, MPI_FLOAT, 0, comm);
 }
+void CubeFD::ApplyM(float* in, float* out, MPI_Comm comm)
+{
+	for (int i = 0; i < n_rows*divs[0]*n_cols*divs[1]*n_layers*divs[2]; i++)
+	{
+		out[i] = in[i];
+	}
+}
 void CubeFD::PrepareOutgoingBuffers()
 {
 

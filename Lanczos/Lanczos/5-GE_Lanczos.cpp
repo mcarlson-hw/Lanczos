@@ -4,7 +4,7 @@
 #include <cmath>
 #include "mpi_dot.h"
 #include "CubeFD.h"
-#include "mkl.h"
+//#include "mkl.h"
 using namespace std;
 int main(int argc, char **argv)
 {
@@ -26,68 +26,77 @@ int main(int argc, char **argv)
 	// Declare Variables
 	const int d = 30;
 	const int N = d*d*d;
-	const int K = 30;
-	const int total_floats = 2 * K*N + 2 * K + 7 * N + 3 * (N / size) + 3 + 12 * (d / size)*(d / size) + (d / size)*(d / size)*(d / size);
+	const int K = 5;
 	float** R;
 	float** Q;
+	float** P;
 	float* alpha;
 	float* beta;
 	float dot_sum;
-	float* temp_v1; // A*q_j
-	float* temp_v2; // alpha_j * q_j
-	float* temp_v3; // beta_j * q_(j-1)
-	float* temp_v4; // temp_v1 - temp_v2
-	float* temp_r;
+	float* temp_v1;
 
 	// Allocate Memory
 	R = new float*[K + 1];
 	Q = new float*[K + 1];
+	P = new float*[K + 2];
 	for (int i = 0; i < K + 1; i++)
 	{
 		R[i] = new float[N]();
 		Q[i] = new float[N]();
+		P[i] = new float[N]();
 	}
+	P[K + 1] = new float[N]();
 	alpha = new float[K + 1]();
 	beta = new float[K + 2]();
 
 	// Initialize
 	for (int i = 0; i < N; i++)
 		R[0][i] = ((float)rand()) / ((float)RAND_MAX);
-	temp_r = new float[N];
 	temp_v1 = new float[N];
-	temp_v2 = new float[N];
-	temp_v3 = new float[N];
-	temp_v4 = new float[N];
 	CubeFD cl(d, d, d, rank, size, MPI_COMM_WORLD);
 
 	// ====== Lanczos Non-Generalized Eigenvalue Solve ======
 	// ======================================================
-	
-	// Set r0 and beta0
+
+	// r0 is an already set random vector
+	// p1 = M * r0
+	cl.ApplyM(R[0], P[0], MPI_COMM_WORLD);
+	// Set beta_1
 	dot_sum = 0.0f;
-	mpi_dot(R[0], R[0], &dot_sum, N, rank, size, MPI_COMM_WORLD);
-	mpi_times(R[0], temp_r, 1.0f / sqrt(dot_sum), N, rank, size, MPI_COMM_WORLD);
+	mpi_dot(R[0], P[0], &dot_sum, N, rank, size, MPI_COMM_WORLD);
 	beta[0] = sqrt(dot_sum);
 
 	// Main Loop
 	for (int j = 1; j < K; j++)
 	{
-		// q_j = r_(j-1) / beta_j
+		// q_j = r_(j-1) / beta_(j-1)
 		mpi_times(R[j - 1], Q[j], 1.0f / beta[j - 1], N, rank, size, MPI_COMM_WORLD);
-		// alpha_j = q_j * A * q_j
-		cl.ApplyA(Q[j], temp_v1, MPI_COMM_WORLD);
+
+		// p_(j-1) = p_(j-1) / beta_(j-1)
+		mpi_times(P[j - 1], P[j - 1], 1.0f / beta[j - 1], N, rank, size, MPI_COMM_WORLD);
+
+		// r_j = (K - sigma*M) \ p_(j-1)		(use MF_GMRES)
+		// MF_GMRES
+
+		// r_j = r_j - q_(j-1) * beta_(j-1)
+		mpi_times(Q[j - 1], temp_v1, beta[j - 1], N, rank, size, MPI_COMM_WORLD);
+		mpi_plus(R[j], temp_v1, R[j], N, rank, size, MPI_COMM_WORLD, false);
+
+		// alpha_(j-1) = r_j (dot) p_(j-1)
 		dot_sum = 0.0f;
-		mpi_dot(temp_v1, Q[j], &dot_sum, N, rank, size, MPI_COMM_WORLD);
+		mpi_dot(R[j], P[j - 1], &dot_sum, N, rank, size, MPI_COMM_WORLD);
 		alpha[j - 1] = dot_sum;
-		// r_j = A * q_j - alpha_j * q_j - beta_j * q_(j-1)
-		mpi_times(Q[j], temp_v2, alpha[j - 1], N, rank, size, MPI_COMM_WORLD);
-		mpi_times(Q[j - 1], temp_v3, beta[j - 1], N, rank, size, MPI_COMM_WORLD);
-		mpi_plus(temp_v1, temp_v2, temp_v4, N, rank, size, MPI_COMM_WORLD, false);
-		mpi_plus(temp_v4, temp_v3, R[j], N, rank, size, MPI_COMM_WORLD, false);
-		// beta_(j+1) = norm(r_j)
+
+		// r_j = r_j - q_j * alpha_(j-1)
+		mpi_times(Q[j], temp_v1, alpha[j - 1], N, rank, size, MPI_COMM_WORLD);
+		mpi_plus(R[j], temp_v1, R[j], N, rank, size, MPI_COMM_WORLD, false);
+
+		// p_j = M*r_j
+		cl.ApplyM(R[j], P[j], MPI_COMM_WORLD);
+
+		// beta_j = sqrt(r_j (dot) p_j)
 		dot_sum = 0.0f;
-		mpi_dot(R[j], R[j], &dot_sum, N, rank, size, MPI_COMM_WORLD);
-		beta[j] = sqrt(dot_sum);
+		mpi_dot(R[j], P[j], &dot_sum, N, rank, size, MPI_COMM_WORLD);
 	}
 
 	// Output
@@ -102,7 +111,7 @@ int main(int argc, char **argv)
 	cout << "]\n";
 
 	// Compute Eigenvalues with LAPACK
-	lapack_int info = LAPACKE_sstev(LAPACK_ROW_MAJOR, 'N', K + 1, alpha, &beta[1], NULL, (lapack_int) 1);
+	//lapack_int info = LAPACKE_sstev(LAPACK_ROW_MAJOR, 'N', K + 1, alpha, &beta[1], NULL, (lapack_int)1);
 
 	// ======================================================
 

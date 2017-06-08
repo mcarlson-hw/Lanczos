@@ -33,12 +33,24 @@
     <ClCompile Include="3-Lanczos.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="4-MF_GMRES.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="5-GE_Lanczos.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="mf_gmres.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mpi_dot.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="CubeFD.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mf_gmres.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

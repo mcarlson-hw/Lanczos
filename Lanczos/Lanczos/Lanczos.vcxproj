@@ -156,11 +156,15 @@
     <ClCompile Include="1-ApplyA.cpp" />
     <ClCompile Include="2-Dot.cpp" />
     <ClCompile Include="3-Lanczos.cpp" />
+    <ClCompile Include="4-MF_GMRES.cpp" />
+    <ClCompile Include="5-GE_Lanczos.cpp" />
     <ClCompile Include="CubeFD.cpp" />
+    <ClCompile Include="mf_gmres.cpp" />
     <ClCompile Include="mpi_dot.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CubeFD.h" />
+    <ClInclude Include="mf_gmres.h" />
     <ClInclude Include="mpi_dot.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
